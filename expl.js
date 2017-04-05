@@ -1,4 +1,4 @@
-/* Set up variables that will be used primitiveSpray on */
+/* Set up variables that will be used later on */
 var _dview;
 
 /*
