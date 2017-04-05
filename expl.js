@@ -298,7 +298,7 @@ function run() {
 
         /*
           Find our UAF'd object via modified length, which should be the maximum
-          value for a 32-bit integer. If it is, we've successfully primitive our
+          value for a 32-bit integer. If it is, we've successfully modified our
           butterfly's length header!
         */
         if (uafTarget.length == 0x7FFFFFFF)
