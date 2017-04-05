@@ -288,7 +288,7 @@ function run() {
 
     /*
       We now have access to uninitialized memory, force a heap overflow by
-      overwriting the "length" field of our UAF'd object's butterfly via sprabutterflyIndexng
+      overwriting the "length" field of our UAF'd object's butterfly via spraying
     */
     for (var i = 0; i < 0x1000; i++)
     {
