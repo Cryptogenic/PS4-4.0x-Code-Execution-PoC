@@ -242,7 +242,7 @@ window.syscallnames =
 	"sys_evf_set": 544,
 	"sys_evf_clear": 545,
 	"sys_evf_cancel": 546,
-	"sys_query_memory_protection": 47,
+	"sys_query_memory_protection": 547,
 	"sys_batch_map": 548,
 	"sys_osem_create": 549,
 	"sys_osem_delete": 550,
